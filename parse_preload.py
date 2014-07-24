@@ -9,13 +9,19 @@
         pip install docopt
         run as above...
 """
-import os
 
-import openpyxl
+import os
 import sqlite3
 import logging
 import urllib
-import docopt
+
+try:
+    import openpyxl
+    import docopt
+except:
+    import sys
+    sys.stderr.write(__doc__)
+    sys.exit(1)
 
 __author__ = 'pcable'
 
