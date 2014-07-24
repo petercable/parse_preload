@@ -9,6 +9,7 @@
         pip install docopt
         run as above...
 """
+import json
 
 import os
 import sqlite3
@@ -156,14 +157,18 @@ def create_db(conn):
             populate_table(conn, name, workbook[sheet][1:])
     os.unlink(temp)
 
-def test_parameters(conn):
+def fix_parameters(conn):
     c = conn.cursor()
     c.execute("select id,parameter_function_map from parameterdefs where parameter_function_map not like ''")
     for row in c:
         try:
-            eval(row[1])
-        except:
-            log.error('ERROR PARSING %s %s', row[0], row[1])
+            obj = eval(row[1])
+            json_string = json.dumps(obj)
+            # log.error('PARSED %s %s %r %r %r', str(row[1]) == json_string, row[0], row[1], obj, json_string)
+            # c.execute("update parameterdefs set parameter_function_map=%s where id='%r'" % (json_string, row[0]))
+        except Exception as e:
+            log.error('ERROR PARSING %s %r %s', row[0], row[1], e)
+
 
 def main():
     options = docopt.docopt(__doc__)
@@ -174,7 +179,7 @@ def main():
         create_db(conn)
 
     conn = sqlite3.connect(dbfile)
-    test_parameters(conn)
+    fix_parameters(conn)
 
 if __name__ == '__main__':
     main()
