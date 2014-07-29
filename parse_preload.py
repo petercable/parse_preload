@@ -9,6 +9,7 @@
         pip install docopt
         run as above...
 """
+from collections import namedtuple, Counter
 import json
 
 import os
@@ -28,6 +29,18 @@ __author__ = 'pcable'
 
 preload_path="https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 assetmappings_path="https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdFVUeDdoUTU0b0NFQ1dCVDhuUjY0THc&output=xls"
+
+IA_SELECT = """
+SELECT id, scenario, ia_driver_uri, ia_driver_module, ia_driver_class, stream_configurations, agent_default_config
+FROM instrumentagent
+WHERE id like 'IA%%'
+"""
+
+STREAM_SELECT = """
+SELECT id, scenario, cfg_stream_type, cfg_stream_name, cfg_parameter_dictionary_name
+FROM streamconfiguration
+WHERE id like 'SC%'
+"""
 
 temp = 'temp.xlsx'
 dbfile = 'preload.db'
@@ -157,18 +170,102 @@ def create_db(conn):
             populate_table(conn, name, workbook[sheet][1:])
     os.unlink(temp)
 
-def fix_parameters(conn):
+def test_param_function_map(conn):
     c = conn.cursor()
     c.execute("select id,parameter_function_map from parameterdefs where parameter_function_map not like ''")
     for row in c:
         try:
-            obj = eval(row[1])
-            json_string = json.dumps(obj)
-            # log.error('PARSED %s %s %r %r %r', str(row[1]) == json_string, row[0], row[1], obj, json_string)
-            # c.execute("update parameterdefs set parameter_function_map=%s where id='%r'" % (json_string, row[0]))
+            if row[0].startswith('PD'):
+                obj = eval(row[1])
+                json_string = json.dumps(obj)
+                # log.error('PARSED %s %s %r %r %r', str(row[1]) == json_string, row[0], row[1], obj, json_string)
+                # c.execute("update parameterdefs set parameter_function_map=%s where id='%r'" % (json_string, row[0]))
         except Exception as e:
             log.error('ERROR PARSING %s %r %s', row[0], row[1], e)
 
+def test_stream(conn, _id):
+    c = conn.cursor()
+    c.execute("""SELECT scenario, ia_driver_uri, ia_driver_module, ia_driver_class,
+                        stream_configurations, agent_default_config
+                 FROM instrumentagent
+                 WHERE id='%s'""" % _id)
+    row = c.fetchone()
+    log.debug(row)
+    scenario, uri, module, _class, streams, rates = row
+    if streams is None:
+        log.error('NO STREAMS DEFINED FOR IA: %s', _id)
+    else:
+        for stream in streams.split(","):
+            stream = load_stream(conn, stream)
+
+StreamConfig = namedtuple('StreamConfig', 'id, scenario, stream_type, stream_name, dict_name')
+# CREATE TABLE StreamConfiguration (Scenario, COMMENT, ID, cfg_stream_type,
+# cfg_stream_name, cfg_parameter_dictionary_name, attr_display_name, comment2);
+def load_streams(conn):
+    log.debug('Loading Stream Configurations')
+    c = conn.cursor()
+    c.execute(STREAM_SELECT)
+    streams = map(StreamConfig._make, c.fetchall())
+    stream_dict = {stream.id:stream for stream in streams}
+    if len(streams) != len(stream_dict):
+        log.warn('Duplicate StreamConfig record(s) found')
+        counter = Counter([stream.id for stream in streams])
+        for k, v in counter.iteritems():
+            if v == 1:
+                continue
+            log.warn('ID: %s COUNT: %d', k, v)
+    return stream_dict
+
+InstrumentAgent = namedtuple('InstrumentAgent', 'id, scenario, uri, module, driver_class, streams, config')
+# CREATE TABLE InstrumentAgent (Scenario, ID, owner_id, lcstate, org_ids, instrument_model_ids,
+# ia_name, ia_description, ia_agent_version, ia_driver_uri, ia_driver_module, ia_driver_class,
+# stream_configurations, agent_default_config);
+# MASSP_A|IA_MASSP_A||DEPLOYED_AVAILABLE|MF_RSN|MASSPA|MASSP Agent|MASSP Agent||
+# http://sddevrepo.oceanobservatories.org/releases/harvard_massp_ooicore-0.0.3-py2.7.egg|
+# mi.instrument.harvard.massp.ooicore.driver|InstrumentDriver|SC1,SC330,SC331,SC332,SC333|
+# aparam_pubrate_config.raw:5,
+# aparam_pubrate_config.massp_mcu_status:5,
+# aparam_pubrate_config.massp_turbo_status:5,
+# aparam_pubrate_config.massp_rga_status:5,
+# aparam_pubrate_config.massp_rga_sample:5
+def load_agents(conn):
+    log.debug('Loading Instrument Agents')
+    c = conn.cursor()
+    c.execute(IA_SELECT)
+    agents = map(InstrumentAgent._make, c.fetchall())
+    agent_dict = {agent.id:agent for agent in agents}
+    if len(agents) != len(agent_dict):
+        log.warn('Duplicate InstrumentAgent record found')
+        counter = Counter([agent.id for agent in agents])
+        for k, v in counter.iteritems():
+            if v == 1:
+                continue
+            log.warn('ID: %s COUNT: %d', k, v)
+    return agent_dict
+
+def test_stream_configs(conn):
+    c = conn.cursor()
+    instrument_agents = load_agents(conn)
+    streams = load_streams(conn)
+    for agent in instrument_agents.itervalues():
+        #log.debug('Checking %s', agent)
+        check_for_missing_values(agent)
+        # each agent should have just one scenario, verify
+        assert len(agent.scenario.split(',')) == 1
+        if agent.streams is not None:
+            for stream in agent.streams.split(','):
+                stream = streams.get(stream)
+                if stream is None:
+                    log.error('UNDEFINED STREAM: %s', stream)
+                    continue
+                if not agent.scenario in stream.scenario.split(','):
+                    if not 'BETA' in stream.scenario.split(','):
+                        log.error('Scenario %s missing from %s', agent.scenario, stream)
+
+def check_for_missing_values(data):
+    for k, v in data._asdict().iteritems():
+        if v is None:
+            log.warn('Missing value (%s) from %s %s', k, type(data).__name__, data.id)
 
 def main():
     options = docopt.docopt(__doc__)
@@ -179,7 +276,8 @@ def main():
         create_db(conn)
 
     conn = sqlite3.connect(dbfile)
-    fix_parameters(conn)
+    test_param_function_map(conn)
+    test_stream_configs(conn)
 
 if __name__ == '__main__':
     main()
