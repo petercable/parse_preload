@@ -42,6 +42,12 @@ FROM streamconfiguration
 WHERE id like 'SC%'
 """
 
+PARAMDICT_SELECT = """
+SELECT id, scenario, name, parameter_ids, temporal_parameter
+FROM parameterdictionary
+WHERE id like 'DICT%'
+"""
+
 temp = 'temp.xlsx'
 dbfile = 'preload.db'
 
@@ -183,6 +189,19 @@ def test_param_function_map(conn):
         except Exception as e:
             log.error('ERROR PARSING %s %r %s', row[0], row[1], e)
 
+ParameterDictionary = namedtuple('ParameterDictionary', 'id, scenario, name, parameter_ids, temporal_parameter')
+def load_paramdicts(conn):
+    log.debug('Loading Parameter Dictionary')
+    c = conn.cursor()
+    c.execute(PARAMDICT_SELECT)
+    params = map(ParameterDictionary._make, c.fetchall())
+    param_dicts_by_id = {p.id:p for p in params}
+    param_dicts_by_name = {p.name:p for p in params}
+    check_for_dupes(params, 'id')
+    check_for_dupes(params, 'name')
+
+    return param_dicts_by_id, param_dicts_by_name
+
 StreamConfig = namedtuple('StreamConfig', 'id, scenario, stream_type, stream_name, dict_name')
 # CREATE TABLE StreamConfiguration (Scenario, COMMENT, ID, cfg_stream_type,
 # cfg_stream_name, cfg_parameter_dictionary_name, attr_display_name, comment2);
@@ -192,13 +211,7 @@ def load_streams(conn):
     c.execute(STREAM_SELECT)
     streams = map(StreamConfig._make, c.fetchall())
     stream_dict = {stream.id:stream for stream in streams}
-    if len(streams) != len(stream_dict):
-        log.warn('Duplicate StreamConfig record(s) found')
-        counter = Counter([stream.id for stream in streams])
-        for k, v in counter.iteritems():
-            if v == 1:
-                continue
-            log.warn('ID: %s COUNT: %d', k, v)
+    check_for_dupes(streams, 'id')
     return stream_dict
 
 InstrumentAgent = namedtuple('InstrumentAgent', 'id, scenario, uri, module, driver_class, streams, config')
@@ -219,19 +232,14 @@ def load_agents(conn):
     c.execute(IA_SELECT)
     agents = map(InstrumentAgent._make, c.fetchall())
     agent_dict = {agent.id:agent for agent in agents}
-    if len(agents) != len(agent_dict):
-        log.warn('Duplicate InstrumentAgent record found')
-        counter = Counter([agent.id for agent in agents])
-        for k, v in counter.iteritems():
-            if v == 1:
-                continue
-            log.warn('ID: %s COUNT: %d', k, v)
+    check_for_dupes(agents, 'id')
     return agent_dict
 
 def test_stream_configs(conn):
     c = conn.cursor()
     instrument_agents = load_agents(conn)
     streams = load_streams(conn)
+    paramdicts_byid, paramdicts_byname = load_paramdicts(conn)
     for agent in instrument_agents.itervalues():
         #log.debug('Checking %s', agent)
         check_for_missing_values(agent)
@@ -266,8 +274,9 @@ def check_agent_config(agent, stream_names):
         config_dict = {each.split(':')[0]:each.split(':')[1] for each in config}
         for k,v in config_dict.iteritems():
             if k != k.strip():
-                log.warn('Whitespace in agent_default_config [%s] entry could break naive parsing! %s',
-                         agent.id, config_dict)
+                # log.warn('Whitespace in agent_default_config [%s] entry could break naive parsing! %s',
+                #          agent.id, config_dict)
+                pass
             try:
                 v = int(v)
             except:
@@ -283,6 +292,13 @@ def check_agent_config(agent, stream_names):
     my_stream_names.sort()
     if my_stream_names != stream_names:
         log.error('Mismatch in streams for agent [%s] %s %s', agent.id, my_stream_names, stream_names)
+
+def check_for_dupes(data, field):
+    name = type(data[0]).__name__
+    counter = Counter([getattr(each, field) for each in data])
+    for k, v in counter.iteritems():
+        if v > 1:
+            log.warn('Duplicate record found [%s][%s] ID: %s COUNT: %d', name, field, k, v)
 
 def main():
     options = docopt.docopt(__doc__)
