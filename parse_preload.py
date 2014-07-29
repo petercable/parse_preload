@@ -183,21 +183,6 @@ def test_param_function_map(conn):
         except Exception as e:
             log.error('ERROR PARSING %s %r %s', row[0], row[1], e)
 
-def test_stream(conn, _id):
-    c = conn.cursor()
-    c.execute("""SELECT scenario, ia_driver_uri, ia_driver_module, ia_driver_class,
-                        stream_configurations, agent_default_config
-                 FROM instrumentagent
-                 WHERE id='%s'""" % _id)
-    row = c.fetchone()
-    log.debug(row)
-    scenario, uri, module, _class, streams, rates = row
-    if streams is None:
-        log.error('NO STREAMS DEFINED FOR IA: %s', _id)
-    else:
-        for stream in streams.split(","):
-            stream = load_stream(conn, stream)
-
 StreamConfig = namedtuple('StreamConfig', 'id, scenario, stream_type, stream_name, dict_name')
 # CREATE TABLE StreamConfiguration (Scenario, COMMENT, ID, cfg_stream_type,
 # cfg_stream_name, cfg_parameter_dictionary_name, attr_display_name, comment2);
@@ -253,19 +238,51 @@ def test_stream_configs(conn):
         # each agent should have just one scenario, verify
         assert len(agent.scenario.split(',')) == 1
         if agent.streams is not None:
-            for stream in agent.streams.split(','):
-                stream = streams.get(stream)
-                if stream is None:
-                    log.error('UNDEFINED STREAM: %s', stream)
-                    continue
-                if not agent.scenario in stream.scenario.split(','):
-                    if not 'BETA' in stream.scenario.split(','):
-                        log.error('Scenario %s missing from %s', agent.scenario, stream)
+            stream_names = check_streams(agent, streams)
+            check_agent_config(agent, stream_names)
 
 def check_for_missing_values(data):
     for k, v in data._asdict().iteritems():
         if v is None:
             log.warn('Missing value (%s) from %s %s', k, type(data).__name__, data.id)
+
+def check_streams(agent, streams):
+    stream_names = []
+    for stream in agent.streams.split(','):
+        stream = streams.get(stream)
+        if stream is None:
+            log.error('UNDEFINED STREAM: %s', stream)
+            continue
+        if not agent.scenario in stream.scenario.split(','):
+            if not 'BETA' in stream.scenario.split(','):
+                log.error('Scenario %s missing from %s', agent.scenario, stream)
+        stream_names.append(stream.stream_name)
+    return stream_names
+
+def check_agent_config(agent, stream_names):
+    config = agent.config.split(',')
+    my_stream_names = []
+    try:
+        config_dict = {each.split(':')[0]:each.split(':')[1] for each in config}
+        for k,v in config_dict.iteritems():
+            if k != k.strip():
+                log.warn('Whitespace in agent_default_config [%s] entry could break naive parsing! %s',
+                         agent.id, config_dict)
+            try:
+                v = int(v)
+            except:
+                log.error('Non-numeric value on right-hand-side of agent [%s] config entry %s',
+                          agent.id, config_dict)
+            my_stream_names.append(k.strip().split('.')[-1])
+
+    except Exception as e:
+        log.error(e)
+        log.error('Unparseable agent_default_config: %s', agent)
+
+    stream_names.sort()
+    my_stream_names.sort()
+    if my_stream_names != stream_names:
+        log.error('Mismatch in streams for agent [%s] %s %s', agent.id, my_stream_names, stream_names)
 
 def main():
     options = docopt.docopt(__doc__)
