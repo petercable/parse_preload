@@ -48,6 +48,13 @@ FROM parameterdictionary
 WHERE id like 'DICT%'
 """
 
+PARAMDEF_SELECT = """
+SELECT id, scenario, hid, parameter_type, value_encoding, unit_of_measure, display_name,
+        precision, parameter_function_id, parameter_function_map, data_product_identifier
+FROM parameterdefs
+WHERE id like 'PD%'
+"""
+
 temp = 'temp.xlsx'
 dbfile = 'preload.db'
 
@@ -189,7 +196,26 @@ def test_param_function_map(conn):
         except Exception as e:
             log.error('ERROR PARSING %s %r %s', row[0], row[1], e)
 
+ParameterDef = namedtuple('ParameterDef',
+                          'id, scenario, hid, parameter_type, value_encoding, units, display_name, precision, '
+                          'parameter_function_id, parameter_function_map, dpi')
+# CREATE TABLE ParameterDefs (Scenario, confluence, Name, ID, HID, HID_Conflict, Parameter_Type, Value_Encoding,
+# Code_Set, Unit_of_Measure, Fill_Value, Display_Name, Precision, visible, Parameter_Function_ID,
+# Parameter_Function_Map, Lookup_Value, QC_Functions, Standard_Name, Data_Product_Identifier, Reference_URLS,
+# Description, Review_Status, Review_Comment, Long_Name, SKIP);
+def load_paramdefs(conn):
+    log.debug('Loading Parameter Definitions')
+    c = conn.cursor()
+    c.execute(PARAMDEF_SELECT)
+    params = map(ParameterDef._make, c.fetchall())
+    param_dict = {x.id:x for x in params}
+    check_for_dupes(params, "id")
+    check_for_dupes(params, "hid")
+    return param_dict
+
 ParameterDictionary = namedtuple('ParameterDictionary', 'id, scenario, name, parameter_ids, temporal_parameter')
+# CREATE TABLE ParameterDictionary (Scenario, ID, confluence, name, parameter_ids,
+# temporal_parameter, parameters, Review_Status, SKIP);
 def load_paramdicts(conn):
     log.debug('Loading Parameter Dictionary')
     c = conn.cursor()
@@ -240,21 +266,17 @@ def test_stream_configs(conn):
     instrument_agents = load_agents(conn)
     streams = load_streams(conn)
     paramdicts_byid, paramdicts_byname = load_paramdicts(conn)
+    paramdefs = load_paramdefs(conn)
     for agent in instrument_agents.itervalues():
         #log.debug('Checking %s', agent)
         check_for_missing_values(agent)
         # each agent should have just one scenario, verify
         assert len(agent.scenario.split(',')) == 1
         if agent.streams is not None:
-            stream_names = check_streams(agent, streams)
+            stream_names = check_streams(agent, streams, paramdicts_byname, paramdefs)
             check_agent_config(agent, stream_names)
 
-def check_for_missing_values(data):
-    for k, v in data._asdict().iteritems():
-        if v is None:
-            log.warn('Missing value (%s) from %s %s', k, type(data).__name__, data.id)
-
-def check_streams(agent, streams):
+def check_streams(agent, streams, dicts, defs):
     stream_names = []
     for stream in agent.streams.split(','):
         stream = streams.get(stream)
@@ -265,6 +287,16 @@ def check_streams(agent, streams):
             if not 'BETA' in stream.scenario.split(','):
                 log.error('Scenario %s missing from %s', agent.scenario, stream)
         stream_names.append(stream.stream_name)
+        paramdict = dicts.get(stream.stream_name)
+        if paramdict is None:
+            log.error('Unable to find stream %s in ParameterDictionary', stream.stream_name)
+        for param in paramdict.parameter_ids.split(','):
+            paramdef = defs.get(param)
+            if paramdef is None:
+                log.error('Unable to find param: %s from stream: %s', param, stream.stream_name)
+                continue
+            check_for_missing_values(paramdef,
+                                     ['dpi', 'parameter_function_id', 'parameter_function_map','units', 'precision'])
     return stream_names
 
 def check_agent_config(agent, stream_names):
@@ -292,6 +324,14 @@ def check_agent_config(agent, stream_names):
     my_stream_names.sort()
     if my_stream_names != stream_names:
         log.error('Mismatch in streams for agent [%s] %s %s', agent.id, my_stream_names, stream_names)
+
+def check_for_missing_values(data, optional=None):
+    if optional is None:
+        optional = []
+    for k, v in data._asdict().iteritems():
+        if k in optional: continue
+        if v is None:
+            log.warn('Missing value (%s) from %s %s', k, type(data).__name__, data.id)
 
 def check_for_dupes(data, field):
     name = type(data[0]).__name__
