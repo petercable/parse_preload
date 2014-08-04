@@ -131,6 +131,8 @@ def deunicode(orig):
             return str(orig)
         except:
             return orig
+    else:
+        return orig
 
 def sanitize_for_sql(row):
     subs = {
