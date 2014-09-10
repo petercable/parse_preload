@@ -15,7 +15,7 @@ import json
 import os
 import sqlite3
 import logging
-import urllib
+import urllib2
 
 try:
     import openpyxl
@@ -175,7 +175,8 @@ def populate_table(conn, name, rows):
 def create_db(conn):
     for path in [preload_path, assetmappings_path]:
         log.debug('Fetching file from %s', path)
-        urllib.urlretrieve(path, temp)
+        urlhandle = urllib2.urlopen(path)
+        open(temp, 'w').write(urlhandle.read())
         log.debug('Parsing excel file')
         workbook = deunicode(xlsx_to_dictionary(load(temp)))
         for sheet in workbook:
