@@ -19,7 +19,7 @@ stream_template = '''  <streamDefinition streamName="%s">
 %s
   </streamDefinition>'''
 
-stream_param_template = '''    <parameterId> %-6s </parameterId> <!-- %s -->'''
+stream_param_template = '''    <parameterId>%s</parameterId> <!-- %s -->'''
 
 
 def get_logger():
