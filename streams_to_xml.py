@@ -10,14 +10,12 @@ from xml.dom import minidom
 
 dbfile = 'preload.db'
 
-streams_template = '''
-<?xml version="1.0" encoding="UTF-8"?>
+streams_template = '''<?xml version="1.0" encoding="UTF-8"?>
 <streamDefinitions>
 %s
-</streamDefinitions>
-'''
+</streamDefinitions>'''
 
-stream_template = '''  <streamDefinition streamName=%s>
+stream_template = '''  <streamDefinition streamName="%s">
 %s
   </streamDefinition>'''
 
