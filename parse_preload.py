@@ -49,7 +49,7 @@ WHERE id like 'DICT%'
 """
 
 PARAMDEF_SELECT = """
-SELECT id, scenario, hid, parameter_type, value_encoding, unit_of_measure, display_name,
+SELECT id, scenario, name, hid, parameter_type, value_encoding, unit_of_measure, fill_value, display_name,
         precision, parameter_function_id, parameter_function_map, data_product_identifier
 FROM parameterdefs
 WHERE id like 'PD%'
@@ -200,8 +200,8 @@ def test_param_function_map(conn):
             log.error('ERROR PARSING %s %r %s', row[0], row[1], e)
 
 ParameterDef = namedtuple('ParameterDef',
-                          'id, scenario, hid, parameter_type, value_encoding, units, display_name, precision, '
-                          'parameter_function_id, parameter_function_map, dpi')
+                          'id, scenario, name, hid, parameter_type, value_encoding, units, fill_value, '
+                          'display_name, precision, parameter_function_id, parameter_function_map, dpi')
 # CREATE TABLE ParameterDefs (Scenario, confluence, Name, ID, HID, HID_Conflict, Parameter_Type, Value_Encoding,
 # Code_Set, Unit_of_Measure, Fill_Value, Display_Name, Precision, visible, Parameter_Function_ID,
 # Parameter_Function_Map, Lookup_Value, QC_Functions, Standard_Name, Data_Product_Identifier, Reference_URLS,
