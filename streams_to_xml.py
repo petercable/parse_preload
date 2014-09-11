@@ -8,9 +8,20 @@ from parse_preload import create_db, load_paramdicts, load_paramdefs
 from xml.etree.ElementTree import Element, SubElement, tostring
 from xml.dom import minidom
 
-from pprint import pprint
-
 dbfile = 'preload.db'
+
+streams_template = '''
+<?xml version="1.0" encoding="UTF-8"?>
+<streamDefinitions>
+%s
+</streamDefinitions>
+'''
+
+stream_template = '''  <streamDefinition streamName=%s>
+%s
+  </streamDefinition>'''
+
+stream_param_template = '''    <parameterId> %-6s </parameterId> <!-- %s -->'''
 
 
 def get_logger():
@@ -34,24 +45,29 @@ def get_logger():
 
 log = get_logger()
 
+
 def massage_value(x):
     if x is None:
         return ''
     return unicode(x)
 
 
-def streams_to_xml(stream_dict, outputfile):
-    root = Element('streamDefinitions')
+def streams_to_xml(stream_dict, param_dict, outputfile):
+    rendered_streams = []
     for stream in stream_dict.itervalues():
+        rendered_params = []
         params = stream.parameter_ids
         if params is None: continue
         params = params.split(',')
-        streamdef = SubElement(root, 'streamDefinition', attrib={'streamName': stream.name})
-        for param in params:
-            child = SubElement(streamdef, 'parameterId')
-            child.text = param
-    outputfile.write(
-        minidom.parseString(tostring(root, encoding='UTF-8')).toprettyxml(encoding='UTF-8'))
+        for param_id in params:
+            param = param_dict.get(param_id.strip())
+            if param is None:
+                rendered_params.append(stream_param_template % (param_id, "NOT FOUND"))
+            else:
+                rendered_params.append(stream_param_template % (param.id, param.name))
+        rendered_streams.append(stream_template % (stream.name, '\n'.join(rendered_params)))
+    output = streams_template % '\n'.join(rendered_streams)
+    outputfile.write(output)
 
 
 # 'id, scenario, hid, parameter_type, value_encoding, units, display_name, precision, '
@@ -79,7 +95,7 @@ def main():
     conn = sqlite3.connect(dbfile)
     stream_dict = load_paramdicts(conn)[1]
     param_dict = load_paramdefs(conn)
-    streams_to_xml(stream_dict, open('streams.xml', 'w'))
+    streams_to_xml(stream_dict, param_dict, open('streams.xml', 'w'))
     params_to_xml(param_dict, open('params.xml', 'w'))
 
 
