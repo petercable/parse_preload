@@ -14,6 +14,7 @@ import qpid.messaging as qm
 all_data_url = 'http://localhost:12570/sensor/user/inv/null/null'
 edex_dir = os.path.join(os.getenv('HOME'), 'uframes', 'ooi', 'uframe-1.0', 'edex')
 startdir = os.path.join(edex_dir, 'data/utility/edex_static/base/ooi/parsers/mi-dataset/mi')
+drivers_dir = os.path.join(startdir, 'driver')
 ingest_dir = os.path.join(edex_dir, 'data', 'ooi')
 log_dir = os.path.join(edex_dir, 'logs')
 
@@ -54,6 +55,26 @@ def get_logger():
 
 
 log = get_logger()
+
+
+class TestCase(object):
+    def __init__(self, config):
+        self.config = config
+        self.instrument = config.get('instrument')
+        self.resource = os.path.join(drivers_dir, config.get('resource'))
+        self.endpoint = os.path.join(ingest_dir, config.get('endpoint'))
+        self.pairs = config.get('pairs', [])
+
+    def __str__(self):
+        return pprint.pformat(self.config)
+
+    def __repr__(self):
+        return self.config.__repr__()
+
+def read_test_cases(directory):
+    for filename in os.listdir(directory):
+        config = yaml.load(open(os.path.join(directory, filename), 'r'))
+        yield TestCase(config)
 
 
 def find_pairs(start, test_dir_name='resource/uframe'):
@@ -312,12 +333,13 @@ def test_bulk():
     purge_edex()
     logfile = find_latest_log()
 
-    for each in list(find_pairs(startdir)):
+    for each in read_test_cases('validate_data'):
         num_files += 1
-        log.debug('Yielded from find_pairs: %s', each)
-        directory, endpoint, test_file, output = each
-        copy_file(directory, endpoint, test_file)
-        expected.extend(get_expected(os.path.join(directory, endpoint, output)))
+        log.debug('Processing test case: %s', each)
+
+        for test_file, yaml_file in each.pairs:
+            copy_file(each.resource, each.endpoint, test_file)
+            expected.extend(get_expected(yaml_file))
 
     watch_log_for('Ingest: EDEX: Ingest', logfile=logfile, expected_count=num_files, timeout=600)
     results = test_results(expected)
