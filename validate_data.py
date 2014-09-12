@@ -341,7 +341,7 @@ def test_bulk():
 
         for test_file, yaml_file in each.pairs:
             copy_file(each.resource, each.endpoint, test_file)
-            expected.extend(get_expected(yaml_file))
+            expected.extend(get_expected(os.path.join(drivers_dir, each.resource, yaml_file)))
 
     watch_log_for('Ingest: EDEX: Ingest', logfile=logfile, expected_count=num_files, timeout=600)
     results = test_results(expected)
