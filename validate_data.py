@@ -259,9 +259,9 @@ def purge_edex():
     watch_log_for('Purge Operation: PURGE_ALL_DATA completed')
 
 
-def copy_file(directory, endpoint, test_file):
-    log.info('copy test file %s into endpoint %s from %s', test_file, endpoint, directory)
-    source_file = os.path.join(directory, endpoint, test_file)
+def copy_file(resource, endpoint, test_file):
+    log.info('copy test file %s into endpoint %s from %s', test_file, endpoint, resource)
+    source_file = os.path.join(drivers_dir, resource, test_file)
     destination_file = os.path.join(ingest_dir, endpoint, str(uuid.uuid4()))
     shutil.copy(source_file, destination_file)
 
