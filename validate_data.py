@@ -6,6 +6,7 @@ import shutil
 import pprint
 import urllib2
 import time
+import uuid
 import yaml
 import json
 import os
@@ -14,7 +15,7 @@ import qpid.messaging as qm
 all_data_url = 'http://localhost:12570/sensor/user/inv/null/null'
 edex_dir = os.path.join(os.getenv('HOME'), 'uframes', 'ooi', 'uframe-1.0', 'edex')
 startdir = os.path.join(edex_dir, 'data/utility/edex_static/base/ooi/parsers/mi-dataset/mi')
-drivers_dir = os.path.join(startdir, 'driver')
+drivers_dir = os.path.join(startdir, 'dataset/driver')
 ingest_dir = os.path.join(edex_dir, 'data', 'ooi')
 log_dir = os.path.join(edex_dir, 'logs')
 
@@ -260,8 +261,9 @@ def purge_edex():
 
 def copy_file(directory, endpoint, test_file):
     log.info('copy test file %s into endpoint %s from %s', test_file, endpoint, directory)
-    shutil.copy(os.path.join(directory, endpoint, test_file),
-                os.path.join(ingest_dir, endpoint, test_file))
+    source_file = os.path.join(directory, endpoint, test_file)
+    destination_file = os.path.join(ingest_dir, endpoint, str(uuid.uuid4()))
+    shutil.copy(source_file, destination_file)
 
 
 def find_latest_log():
