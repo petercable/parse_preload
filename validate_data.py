@@ -84,7 +84,7 @@ def read_test_cases(f):
             config = yaml.load(open(os.path.join(f, filename), 'r'))
             yield TestCase(config)
     elif os.path.isfile(f):
-        config = yaml.load(open(f), 'r')
+        config = yaml.load(open(f, 'r'))
         yield TestCase(config)
 
 
