@@ -13,7 +13,10 @@ import os
 import qpid.messaging as qm
 
 all_data_url = 'http://localhost:12570/sensor/user/inv/null/null'
-edex_dir = os.path.join(os.getenv('HOME'), 'uframes', 'ooi', 'uframe-1.0', 'edex')
+
+edex_dir = os.getenv('EDEX_HOME')
+if edex_dir is None:
+    edex_dir = os.path.join(os.getenv('HOME'), 'uframes', 'ooi', 'uframe-1.0', 'edex')
 startdir = os.path.join(edex_dir, 'data/utility/edex_static/base/ooi/parsers/mi-dataset/mi')
 drivers_dir = os.path.join(startdir, 'dataset/driver')
 ingest_dir = os.path.join(edex_dir, 'data', 'ooi')
@@ -335,7 +338,7 @@ def test_bulk():
     purge_edex()
     logfile = find_latest_log()
 
-    for each in read_test_cases('validate_data'):
+    for each in read_test_cases('test_cases'):
         num_files += 1
         log.debug('Processing test case: %s', each)
 
