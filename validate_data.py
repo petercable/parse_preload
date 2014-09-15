@@ -76,42 +76,12 @@ class TestCase(object):
     def __repr__(self):
         return self.config.__repr__()
 
+
 def read_test_cases(directory):
+    log.info('Finding test cases in directory: %s', directory)
     for filename in os.listdir(directory):
         config = yaml.load(open(os.path.join(directory, filename), 'r'))
         yield TestCase(config)
-
-
-def find_pairs(start, test_dir_name='resource/uframe'):
-    """
-    Generator.  This function will walk the directory tree beginning at <start>
-    and find all directories named <test_dir_name>.  Each of these directories
-    will be walked until files are found.  The directories between <test_dir_name>
-    and the files will specify an endpoint directory.  The function will then yield
-    the parent directory, the endpoint directory and pairs of matching files
-    (xxxx.* and xxxx.yml)
-    :param start: directory to begin walking
-    :return: generator which yields directories, endpoints and file pairs
-    """
-    source_dirs = []
-    for top, dirs, files in os.walk(start):
-        if top.endswith(test_dir_name):
-            source_dirs.append(top)
-
-    log.info('Found %s folders: %s', test_dir_name, source_dirs)
-
-    for source in source_dirs:
-        for top, dirs, files in os.walk(source):
-            if files:
-                endpoint = top.split(test_dir_name)[-1][1:]
-                prefixes = []
-                for f in files:
-                    if f.endswith('.yml'):
-                        prefixes.append(f.split('.yml')[0])
-                for prefix in prefixes:
-                    for f in files:
-                        if f.startswith(prefix) and not f.endswith('.yml'):
-                            yield source, endpoint, f, prefix + '.yml'
 
 
 def get_from_edex():
@@ -271,7 +241,7 @@ def copy_file(resource, endpoint, test_file):
 
 
 def find_latest_log():
-    todayglob = time.strftime('edex-ooi-%Y%m%d.log*', time.gmtime())
+    todayglob = time.strftime('edex-ooi-%Y%m%d.log*', time.localtime())
     files = glob.glob(os.path.join(log_dir, todayglob))
     files = [(os.stat(f).st_mtime, f) for f in files if not f.endswith('lck')]
     files.sort()
@@ -313,23 +283,23 @@ def test_results(expected):
     return len(retrieved), len(expected), failures
 
 
-def test():
-    scorecard = {}
-    for each in find_pairs(startdir):
-        log.debug('Yielded from find_pairs: %s', each)
-        directory, endpoint, test_file, output = each
-        purge_edex()
-        copy_file(directory, endpoint, test_file)
-        wait_for_ingest_complete()
-        expected = get_expected(os.path.join(directory, endpoint, output))
-        edex_count, yaml_count, failures = test_results(expected)
-        log.info('endpoint: %s edex: %d yaml: %d failures: %s', endpoint, edex_count, yaml_count, failures)
-        scorecard[(endpoint, test_file)] = edex_count, yaml_count, failures
-
-    for endpoint, test_file in scorecard:
-        log.info('endpoint: %s test_file: %s', endpoint, test_file)
-        edex_count, yaml_count, failures = scorecard[(endpoint, test_file)]
-        log.info('---- edex_count: %d yaml_count: %d failures: %s', edex_count, yaml_count, failures)
+# def test():
+#     scorecard = {}
+#     for each in find_pairs(startdir):
+#         log.debug('Yielded from find_pairs: %s', each)
+#         directory, endpoint, test_file, output = each
+#         purge_edex()
+#         copy_file(directory, endpoint, test_file)
+#         wait_for_ingest_complete()
+#         expected = get_expected(os.path.join(directory, endpoint, output))
+#         edex_count, yaml_count, failures = test_results(expected)
+#         log.info('endpoint: %s edex: %d yaml: %d failures: %s', endpoint, edex_count, yaml_count, failures)
+#         scorecard[(endpoint, test_file)] = edex_count, yaml_count, failures
+#
+#     for endpoint, test_file in scorecard:
+#         log.info('endpoint: %s test_file: %s', endpoint, test_file)
+#         edex_count, yaml_count, failures = scorecard[(endpoint, test_file)]
+#         log.info('---- edex_count: %d yaml_count: %d failures: %s', edex_count, yaml_count, failures)
 
 
 def test_bulk(test_cases):
@@ -355,9 +325,14 @@ def test_bulk(test_cases):
     log.info('edex_count: %d yaml_count: %d failures: %s', *results)
 
 if __name__ == '__main__':
-    if len(sys.argv) > 1:
+    test_cases = []
+    if len(sys.argv) <= 1:
         test_cases = read_test_cases('test_cases')
     else:
-        test_cases = sys.argv[1:]
+        for each in sys.argv[1:]:
+            if os.path.isdir(each):
+                test_cases.extend(read_test_cases(each))
+            else:
+                test_cases.append(each)
 
     test_bulk(test_cases)
