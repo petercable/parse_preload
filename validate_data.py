@@ -9,6 +9,7 @@ import time
 import uuid
 import yaml
 import json
+import sys
 import os
 import qpid.messaging as qm
 
@@ -331,14 +332,14 @@ def test():
         log.info('---- edex_count: %d yaml_count: %d failures: %s', edex_count, yaml_count, failures)
 
 
-def test_bulk():
+def test_bulk(test_cases):
     expected = []
     num_files = 0
 
     purge_edex()
     logfile = find_latest_log()
 
-    for each in read_test_cases('test_cases'):
+    for each in test_cases:
         num_files += 1
         log.debug('Processing test case: %s', each)
 
@@ -354,4 +355,9 @@ def test_bulk():
     log.info('edex_count: %d yaml_count: %d failures: %s', *results)
 
 if __name__ == '__main__':
-    test_bulk()
+    if len(sys.argv) > 1:
+        test_cases = read_test_cases('test_cases')
+    else:
+        test_cases = sys.argv[1:]
+
+    test_bulk(test_cases)
