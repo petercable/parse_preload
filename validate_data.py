@@ -77,11 +77,14 @@ class TestCase(object):
         return self.config.__repr__()
 
 
-def read_test_cases(directory):
-    log.info('Finding test cases in directory: %s', directory)
-    for filename in os.listdir(directory):
-        config = yaml.load(open(os.path.join(directory, filename), 'r'))
-        yield TestCase(config)
+def read_test_cases(f):
+    log.info('Finding test cases in: %s', f)
+    if os.path.isdir(f):
+        for filename in os.listdir(f):
+            config = yaml.load(open(os.path.join(f, filename), 'r'))
+            yield TestCase(config)
+    elif os.path.isfile(f):
+        yield TestCase(f)
 
 
 def get_from_edex():
@@ -330,9 +333,6 @@ if __name__ == '__main__':
         test_cases = read_test_cases('test_cases')
     else:
         for each in sys.argv[1:]:
-            if os.path.isdir(each):
-                test_cases.extend(read_test_cases(each))
-            else:
-                test_cases.append(each)
+            test_cases.extend(list(read_test_cases(each)))
 
     test_bulk(test_cases)
