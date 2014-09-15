@@ -84,7 +84,8 @@ def read_test_cases(f):
             config = yaml.load(open(os.path.join(f, filename), 'r'))
             yield TestCase(config)
     elif os.path.isfile(f):
-        yield TestCase(f)
+        config = yaml.load(open(f), 'r')
+        yield TestCase(config)
 
 
 def get_from_edex():
