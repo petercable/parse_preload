@@ -136,8 +136,9 @@ def get_expected(filename):
             timestamp = time.mktime(time.strptime(timestamp + 'GMT', '%Y-%m-%dT%H:%M:%S%Z'))
             if millis.endswith('Z'):
                 millis = millis[:-1]
+            divisor = 10 ** len(millis)
             millis = int(millis)
-            timestamp = timestamp + millis / 1e6 + 2208988800l
+            timestamp = timestamp + millis / divisor + 2208988800l
             record['internal_timestamp'] = timestamp
 
     return data
