@@ -191,7 +191,7 @@ def diff(a, b, ignore=None, rename=None):
     :return: list of failures
     """
     if ignore is None:
-        ignore = ['_index', 'particle_object', 'quality_flag', 'driver_timestamp', 'stream_name']
+        ignore = ['particle_object', 'quality_flag', 'driver_timestamp', 'stream_name']
     if rename is None:
         rename = {'particle_type': 'stream_name'}
 
@@ -199,7 +199,7 @@ def diff(a, b, ignore=None, rename=None):
 
     # verify from expected to retrieved
     for k, v in a.iteritems():
-        if k in ignore:
+        if k in ignore or k.startswith('_'):
             continue
         if k in rename:
             k = rename[k]
@@ -323,6 +323,7 @@ def test_bulk(test_cases):
             expected.extend(get_expected(os.path.join(drivers_dir, each.resource, yaml_file)))
 
     watch_log_for('Ingest: EDEX: Ingest', logfile=logfile, expected_count=num_files, timeout=600)
+    time.sleep(1)
     results = test_results(expected)
 
     log.info('records: %d', len(get_from_edex()))
