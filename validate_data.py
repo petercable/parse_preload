@@ -138,7 +138,7 @@ def get_expected(filename):
                 millis = millis[:-1]
             divisor = 10 ** len(millis)
             millis = float(millis)
-            timestamp = timestamp + millis / divisor + 2208988800l
+            timestamp = timestamp + millis / divisor + 2208988800l - time.timezone
             record['internal_timestamp'] = timestamp
 
     return data
