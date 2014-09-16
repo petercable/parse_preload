@@ -137,11 +137,7 @@ def get_expected(filename):
             if millis.endswith('Z'):
                 millis = millis[:-1]
             divisor = 10 ** len(millis)
-<<<<<<< HEAD
             millis = float(millis)
-=======
-            millis = int(millis)
->>>>>>> 117ca0dbcf88d81c76d4d00bc65b6ded0dbdc943
             timestamp = timestamp + millis / divisor + 2208988800l
             record['internal_timestamp'] = timestamp
 
