@@ -229,13 +229,13 @@ def diff(a, b, ignore=None, rename=None):
     return failures
 
 
-def purge_edex():
+def purge_edex(logfile=None):
     log.info('Purging edex')
     conn = qm.Connection(host=HOST, port=PORT, username=USER, password=USER)
     conn.open()
     conn.session().sender('purgeRequest').send(PURGE_MESSAGE)
     conn.close()
-    watch_log_for('Purge Operation: PURGE_ALL_DATA completed')
+    watch_log_for('Purge Operation: PURGE_ALL_DATA completed', logfile=logfile)
 
 
 def copy_file(resource, endpoint, test_file):
@@ -288,23 +288,19 @@ def test_results(expected):
     return len(retrieved), len(expected), failures
 
 
-# def test():
-#     scorecard = {}
-#     for each in find_pairs(startdir):
-#         log.debug('Yielded from find_pairs: %s', each)
-#         directory, endpoint, test_file, output = each
-#         purge_edex()
-#         copy_file(directory, endpoint, test_file)
-#         wait_for_ingest_complete()
-#         expected = get_expected(os.path.join(directory, endpoint, output))
-#         edex_count, yaml_count, failures = test_results(expected)
-#         log.info('endpoint: %s edex: %d yaml: %d failures: %s', endpoint, edex_count, yaml_count, failures)
-#         scorecard[(endpoint, test_file)] = edex_count, yaml_count, failures
-#
-#     for endpoint, test_file in scorecard:
-#         log.info('endpoint: %s test_file: %s', endpoint, test_file)
-#         edex_count, yaml_count, failures = scorecard[(endpoint, test_file)]
-#         log.info('---- edex_count: %d yaml_count: %d failures: %s', edex_count, yaml_count, failures)
+def test(test_cases):
+    scorecard = {}
+    logfile = find_latest_log()
+    for each in test_cases:
+        log.debug('Processing test case: %s', each)
+        for test_file, yaml_file in each.pairs:
+            purge_edex()
+            copy_file(each.resource, each.endpoint, test_file)
+            expected = get_expected(os.path.join(drivers_dir, each.resource, yaml_file))
+            watch_log_for('Ingest: EDEX: Ingest', logfile=logfile)
+            time.sleep(1)
+            scorecard[each.instrument] = test_results(expected)
+    pprint.pprint(scorecard)
 
 
 def test_bulk(test_cases):
@@ -338,4 +334,4 @@ if __name__ == '__main__':
         for each in sys.argv[1:]:
             test_cases.extend(list(read_test_cases(each)))
 
-    test_bulk(test_cases)
+    test(test_cases)
