@@ -1,0 +1,4 @@
+instrument: dosta_abcdjm_glider_recovered
+resource: moas/gl/dosta/resource
+endpoint: dosta_abcdjm_glider_recov
+pairs: [[multiple_dosta_record_recovered.mrg,multiple_dosta_record_recovered.mrg.result.yml]]
